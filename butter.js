@@ -29,12 +29,11 @@ class Butter {
         res.statusCode = code;
         return res;
       };
-
+      // Send a JSON response with the provided data (for small json data , less than the higherWaterMark)
       res.json = (data) => {
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify(data));
       };
-      console.log(this.routes);
 
       if (!this.routes[req.method.toLowerCase() + req.url]) {
         res.status(404).json({ error: `Cannot ${req.method} ${req.url}` });

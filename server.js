@@ -5,11 +5,11 @@ const server = new Butter();
 const PORT = 4060;
 
 server.route("get", "/", (req, res) => {
-  res.status(200).sendFile("./public/index.html", "text/html");
+  res.sendFile("./public/index.html", "text/html");
 });
 
-server.route("put", "/upload", (req, res) => {
-  res.status(404).sendFile("");
+server.route("get", "/style.css", (req, res) => {
+  res.sendFile("./public/style.css", "text/css");
 });
 
 server.listen(PORT, () => {
