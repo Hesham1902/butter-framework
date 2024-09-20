@@ -1,6 +1,8 @@
 //@ts-nocheck
 const Butter = require("../butter");
 
+const SESSIONS = [];
+
 const USERS = [
   {
     id: 1,
@@ -52,6 +54,10 @@ server.route("get", "/login", (req, res) => {
   res.sendFile("./public/index.html", "text/html");
 });
 
+server.route("get", "/profile", (req, res) => {
+  res.sendFile("./public/index.html", "text/html");
+});
+
 // ------- JSON ROUTES --------
 server.route("get", "/api/posts", (req, res) => {
   const posts = POSTS.map((post) => {
@@ -80,14 +86,28 @@ server.route("post", "/api/login", (req, res) => {
     if (!user) {
       res.status(401).json({ message: "Invalid credentials" });
     } else {
-      loggedUser = user;
+      const token = Math.floor(Math.random() * 10000000).toString();
+      SESSIONS.push({ token, userId: user.id });
+      res.setHeader("set-cookie", `token=${token}; path=/;`);
       res.status(200).json({ message: "Logged in successfully" });
     }
   });
 });
 
 server.route("get", "/api/user", (req, res) => {
-  res.status(200).json(loggedUser);
+  if (req.headers.cookie) {
+    const token = req.headers.cookie.split("=")[1];
+
+    const session = SESSIONS.find((session) => session.token === token);
+    if (!session) {
+      res.status(401).json({ message: "Unauthorized" });
+    } else {
+      const user = USERS.find((user) => user.id === session.userId);
+      res.status(200).json(user);
+    }
+  } else {
+    res.status(401).json({ message: "Unauthorized" });
+  }
 });
 
 server.route("delete", "/api/logout", (req, res) => {
