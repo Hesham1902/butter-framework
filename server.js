@@ -37,10 +37,59 @@ const server = new Butter();
 
 const PORT = 8000;
 
-// ------- FILES ROUTES --------
-server.route("get", "/", (req, res) => {
-  res.sendFile("./public/index.html", "text/html");
+const parseJson = (req, res, next) => {
+  if (req.headers["content-type"] === "application/json") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString("utf-8");
+      console.log("Chunk after parse the body", chunk.toString("utf-8"));
+    });
+    req.on("end", () => {
+      body = JSON.parse(body);
+      req.body = body;
+      next();
+    });
+  } else {
+    next();
+  }
+};
+// ------- MIDDLEWARES --------
+server.beforeEach((req, res, next) => {
+  const routes = ["/", "/login", "/profile", "/new-post"];
+  if (routes.includes(req.url)) {
+    return res.status(200).sendFile("./public/index.html", "text/html");
+  }
+  next();
 });
+server.beforeEach(parseJson);
+
+// Authentication middleware
+server.beforeEach((req, res, next) => {
+  const routesToAuthenticate = [
+    "GET /api/user",
+    "POST /api/post",
+    "PUT /api/user",
+    "DELETE /api/logout",
+  ];
+
+  if (routesToAuthenticate.includes(req.method + " " + req.url)) {
+    if (req.headers.cookie) {
+      const token = req.headers.cookie.split("=")[1];
+      console.log(SESSIONS);
+
+      const session = SESSIONS.find((session) => session.token === token);
+      if (session) {
+        req.userId = session.userId;
+        return next();
+      }
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+  } else {
+    next();
+  }
+});
+
+// ------- FILES ROUTES --------
 
 server.route("get", "/styles.css", (req, res) => {
   res.sendFile("./public/styles.css", "text/css");
@@ -50,15 +99,9 @@ server.route("get", "/scripts.js", (req, res) => {
   res.sendFile("./public/scripts.js", "text/javascript");
 });
 
-server.route("get", "/login", (req, res) => {
-  res.sendFile("./public/index.html", "text/html");
-});
-
-server.route("get", "/profile", (req, res) => {
-  res.sendFile("./public/index.html", "text/html");
-});
-
 // ------- JSON ROUTES --------
+
+// Get posts info..
 server.route("get", "/api/posts", (req, res) => {
   const posts = POSTS.map((post) => {
     const user = USERS.find((user) => user.id === post.userId);
@@ -70,49 +113,42 @@ server.route("get", "/api/posts", (req, res) => {
 });
 
 server.route("post", "/api/login", (req, res) => {
-  let body = "";
-  req.on("data", (chunk) => {
-    body += chunk.toString("utf-8");
-    console.log(chunk.toString("utf-8"));
-  });
-  req.on("end", () => {
-    body = JSON.parse(body);
+  const user = USERS.find(
+    (user) =>
+      user.username === req.body.username && user.password === req.body.password
+  );
 
-    const user = USERS.find(
-      (user) =>
-        user.username === body.username && user.password === body.password
-    );
-
-    if (!user) {
-      res.status(401).json({ message: "Invalid credentials" });
-    } else {
-      const token = Math.floor(Math.random() * 10000000).toString();
-      SESSIONS.push({ token, userId: user.id });
-      res.setHeader("set-cookie", `token=${token}; path=/;`);
-      res.status(200).json({ message: "Logged in successfully" });
-    }
-  });
-});
-
-server.route("get", "/api/user", (req, res) => {
-  if (req.headers.cookie) {
-    const token = req.headers.cookie.split("=")[1];
-
-    const session = SESSIONS.find((session) => session.token === token);
-    if (!session) {
-      res.status(401).json({ message: "Unauthorized" });
-    } else {
-      const user = USERS.find((user) => user.id === session.userId);
-      res.status(200).json(user);
-    }
+  if (!user) {
+    res.status(401).json({ message: "Invalid credentials" });
   } else {
-    res.status(401).json({ message: "Unauthorized" });
+    const token = Math.floor(Math.random() * 10000000).toString();
+    SESSIONS.push({ token, userId: user.id });
+    res.setHeader("set-cookie", `token=${token}; path=/;`);
+    res.status(200).json({ message: "Logged in successfully" });
   }
 });
 
-server.route("delete", "/api/logout", (req, res) => {
-  res.status(200).json({ message: "Logged out successfully" });
+// Get user info..
+server.route("get", "/api/user", (req, res) => {
+  const user = USERS.find((user) => user.id === req.userId);
+  res.status(200).json(user);
 });
+
+// Log user out..
+server.route("delete", "/api/logout", (req, res) => {
+  if (req.headers.cookie) {
+    const token = req.headers.cookie.split("=")[1];
+    SESSIONS.filter((session) => session.token !== token);
+    return res.status(200).json({ message: "Logged out successfully" });
+  }
+  res.status(401).json({ message: "Unauthorized" });
+});
+
+// Update user info..
+server.route("put", "/api/user", (req, res) => {});
+
+// Create a new post..
+server.route("post", "/api/posts", (req, res) => {});
 
 server.listen(PORT, () => {
   console.log(`Server is listening on port: ${PORT}`);
